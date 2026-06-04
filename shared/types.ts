@@ -25,7 +25,7 @@ export type ClientMessage =
   | { type: 'unready' }
   | { type: 'start_game' }
   | { type: 'kick_player'; playerId: string }
-  | { type: 'play_cards'; cards: string[]; declaredCard: TargetCard; declaredCount: number }
+  | { type: 'play_cards'; cards: CardValue[]; declaredCard: TargetCard; declaredCount: number }
   | { type: 'challenge' }
   | { type: 'pass' }
   | { type: 'chat'; text: string };
@@ -46,6 +46,7 @@ export interface PlayerPublicInfo {
   isHost: boolean;
   isAlive: boolean;
   isConnected: boolean;
+  /** 轮盘存活次数（子弹数 = count + 1） */
   rouletteCount: number;
   cardCount: number;
 }
@@ -59,7 +60,8 @@ export const DECK_COMPOSITION: Record<Exclude<CardValue, 'Joker'>, number> = {
 };
 
 export const JOKER_COUNT = 2;
-export const TOTAL_CARDS = 26;
+export const TOTAL_CARDS =
+  Object.values(DECK_COMPOSITION).reduce((sum, count) => sum + count, 0) + JOKER_COUNT;
 export const CARDS_PER_PLAYER = 5;
 export const MAX_PLAYERS = 4;
 export const TURN_TIMEOUT_SECONDS = 15;
