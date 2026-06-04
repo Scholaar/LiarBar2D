@@ -54,18 +54,25 @@ export const GameRoom: React.FC = () => {
   const [disconnected, setDisconnected] = useState(false);
 
   useEffect(() => {
+    let didJoin = false;
     (async () => {
       // If already in a game room (e.g., from createGameRoom), skip join
       if (gameClient.gameRoom) {
         return;
       }
       try {
+        didJoin = true;
         await gameClient.joinGameRoom(roomId!);
       } catch {
         navigate('/lobby');
       }
     })();
-    return () => { gameClient.leaveGameRoom(); };
+    return () => {
+      // Only leave if WE joined — don't leave rooms created by createGameRoom
+      if (didJoin) {
+        gameClient.leaveGameRoom();
+      }
+    };
   }, [roomId, navigate]);
 
   // Force re-render on state change
