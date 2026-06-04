@@ -55,6 +55,10 @@ export const GameRoom: React.FC = () => {
 
   useEffect(() => {
     (async () => {
+      // If already in a game room (e.g., from createGameRoom), skip join
+      if (gameClient.gameRoom) {
+        return;
+      }
       try {
         await gameClient.joinGameRoom(roomId!);
       } catch {

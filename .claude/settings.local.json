@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git fetch *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh auth *)",
+      "Read(//home/zmw/.ssh/**)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(git branch *)",
+      "Bash(bash *)",
+      "Bash(git ls-tree *)",
+      "Bash(npm install *)",
+      "Bash(node -e ' *)",
+      "Bash(npx vitest *)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const c = require\\('colyseus'\\); console.log\\(Object.keys\\(c\\).join\\(', '\\)\\)\")",
+      "Bash(node -e \"const c = require\\('colyseus'\\); console.log\\('Schema:', typeof c.Schema\\); console.log\\('MapSchema:', typeof c.MapSchema\\); console.log\\('ArraySchema:', typeof c.ArraySchema\\)\")",
+      "Bash(npm ls *)",
+      "Bash(ls node_modules/@colyseus/)",
+      "Bash(node -e \"const s = require\\('@colyseus/schema'\\); console.log\\('Schema:', typeof s.Schema\\); console.log\\('MapSchema:', typeof s.MapSchema\\); console.log\\('ArraySchema:', typeof s.ArraySchema\\); console.log\\('type:', typeof s.type\\)\")",
+      "Bash(ls node_modules/.package-lock.json)",
+      "Bash(ls node_modules/colyseus/build/)",
+      "Bash(ls node_modules/colyseus/lib/)",
+      "Bash(npx vite *)",
+      "Bash(timeout 5 npx tsx src/index.ts)"
+    ]
+  }
+}

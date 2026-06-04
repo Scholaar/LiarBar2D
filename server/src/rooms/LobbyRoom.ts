@@ -16,7 +16,8 @@ export class LobbyRoom extends Room {
   }
 
   async onJoin(client: Client): Promise<void> {
-    await this.sendRoomList(client);
+    // Room list is requested explicitly by clients via 'list_rooms' message.
+    // Don't auto-send here to avoid race with onMessage handler registration.
   }
 
   private async sendRoomList(client: Client): Promise<void> {
