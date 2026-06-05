@@ -26,7 +26,10 @@
       "Bash(ls node_modules/colyseus/build/)",
       "Bash(ls node_modules/colyseus/lib/)",
       "Bash(npx vite *)",
-      "Bash(timeout 5 npx tsx src/index.ts)"
+      "Bash(timeout 5 npx tsx src/index.ts)",
+      "Bash(npx tsx *)",
+      "mcp__playwright__browser_navigate",
+      "Bash(npx playwright *)"
     ]
   }
 }

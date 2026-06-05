@@ -184,6 +184,8 @@ export const GameRoom: React.FC = () => {
   const isAllReady = state.playerOrder.length === 4
     && state.playerOrder.every((id) => state.players.get(id)?.isReady);
 
+  console.log(`[GameRoom] render — phase=${state.phase}, isWaiting=${isWaiting}, playerCount=${state.playerOrder.length}, myPlayer.isReady=${myPlayer?.isReady}`);
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d1117 70%)', position: 'relative' }}>
       {disconnected && (
@@ -239,7 +241,7 @@ export const GameRoom: React.FC = () => {
           {isWaiting ? (
             <>
               <button
-                onClick={() => send('ready')}
+                onClick={() => { console.log('[GameRoom] 准备按钮被点击!'); send('ready'); }}
                 style={{
                   padding: '10px 18px', fontSize: 14, fontWeight: 'bold',
                   background: myPlayer?.isReady ? '#f0a500' : '#53a8b6',

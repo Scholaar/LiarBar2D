@@ -103,10 +103,18 @@ export class GameRoom extends Room<GameRoomState> {
   // === 准备与开始 ===
 
   private handleReady(client: Client): void {
-    if (this.state.phase !== 'waiting' && this.state.phase !== 'ready') return;
+    console.log(`[GameRoom] handleReady called by client ${client.sessionId}, phase=${this.state.phase}`);
+    if (this.state.phase !== 'waiting' && this.state.phase !== 'ready') {
+      console.warn(`[GameRoom] handleReady rejected — wrong phase: ${this.state.phase}`);
+      return;
+    }
     const player = this.state.players.get(client.sessionId);
-    if (!player) return;
+    if (!player) {
+      console.warn(`[GameRoom] handleReady rejected — player not found for sessionId ${client.sessionId}`);
+      return;
+    }
     player.isReady = !player.isReady;
+    console.log(`[GameRoom] player ${player.name} isReady=${player.isReady}`);
 
     const allPlayers = Array.from(this.state.players.values());
     const allReady =
