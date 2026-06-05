@@ -103,7 +103,7 @@ export class GameRoom extends Room<GameRoomState> {
   // === 准备与开始 ===
 
   private handleReady(client: Client): void {
-    if (this.state.phase !== 'waiting') return;
+    if (this.state.phase !== 'waiting' && this.state.phase !== 'ready') return;
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     player.isReady = !player.isReady;
@@ -113,8 +113,10 @@ export class GameRoom extends Room<GameRoomState> {
       allPlayers.length === MAX_PLAYERS && allPlayers.every((p) => p.isReady);
     if (allReady) {
       this.state.phase = 'ready';
-      this.updateMetadata();
+    } else {
+      this.state.phase = 'waiting';
     }
+    this.updateMetadata();
   }
 
   private handleStartGame(client: Client): void {

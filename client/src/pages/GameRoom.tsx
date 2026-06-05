@@ -6,28 +6,69 @@ import { bindGameKeys } from '../game/keyboard';
 import type { Player } from '../../../server/src/schema/GameRoomState';
 
 // Placeholder components (to be replaced by actual implementations)
-const GameHeader: React.FC<{ state: any; mySessionId: any }> = ({ state, mySessionId }) => (
-  <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(26,26,46,0.9)', border: '1px solid #f0a500', borderRadius: 8, padding: '10px 14px', zIndex: 10 }}>
-    {state?.targetCard && <div style={{ color: '#f0a500', fontSize: 14 }}>🎯 目标牌：<strong style={{ fontSize: 20 }}>{state.targetCard}</strong></div>}
-    <div style={{ color: '#ccc', fontSize: 12, marginTop: 4 }}>第 {state?.roundNumber} 轮</div>
-    {state?.phase === 'playing' && <div style={{ color: '#e94560', fontSize: 14, fontWeight: 'bold', marginTop: 4 }}>⏱ 剩余 {state?.timeoutSeconds} 秒</div>}
-  </div>
-);
+const GameHeader: React.FC<{ state: any; mySessionId: any }> = ({ state, mySessionId }) => {
+  const playerCount = state?.playerOrder?.length || 0;
+  const isWaiting = state?.phase === 'waiting' || state?.phase === 'ready';
+  const currentPlayer = state?.players?.get(state?.currentTurnId);
+  const isMyTurn = state?.currentTurnId === mySessionId;
+
+  return (
+    <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(26,26,46,0.9)', border: '1px solid #f0a500', borderRadius: 8, padding: '10px 14px', zIndex: 10, minWidth: 180 }}>
+      {isWaiting ? (
+        <>
+          <div style={{ color: '#f0a500', fontSize: 14 }}>
+            👥 {playerCount}/4 玩家
+            <span style={{ color: '#8b949e', fontSize: 12, marginLeft: 8 }}>
+              {state?.phase === 'ready' ? '· 准备中' : '· 等待中'}
+            </span>
+          </div>
+        </>
+      ) : (
+        <>
+          {state?.targetCard && <div style={{ color: '#f0a500', fontSize: 14 }}>🎯 目标牌：<strong style={{ fontSize: 20 }}>{state.targetCard}</strong></div>}
+          <div style={{ color: '#ccc', fontSize: 12, marginTop: 4 }}>
+            第 {state?.roundNumber} 轮
+            {currentPlayer && (
+              <span>
+                {' · 轮到 '}
+                <span style={{ color: isMyTurn ? '#53a8b6' : '#e94560', fontWeight: 'bold' }}>
+                  {currentPlayer.name}{isMyTurn ? '（你）' : ''}
+                </span>
+              </span>
+            )}
+          </div>
+          {state?.phase === 'playing' && (
+            <div style={{ color: '#e94560', fontSize: 14, fontWeight: 'bold', marginTop: 4 }}>
+              ⏱ 剩余 {state?.timeoutSeconds} 秒
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
 
 const PlayerSlot: React.FC<{ player: any; position: string; isCurrentTurn: boolean }> = ({ player, isCurrentTurn }) => (
   <div style={{
     background: isCurrentTurn ? '#1e3a5f' : '#161b22',
-    border: `2px solid ${isCurrentTurn ? '#e94560' : '#555'}`,
+    border: `2px solid ${isCurrentTurn ? '#e94560' : (player?.isReady ? '#53a8b6' : '#555')}`,
     borderRadius: 8, padding: '8px 14px', textAlign: 'center',
     opacity: player?.isAlive ? 1 : 0.5,
     filter: player?.isAlive ? 'none' : 'grayscale(100%)',
-  }}>
+    minWidth: 120,
+  }} className={isCurrentTurn ? 'pulse' : ''}>
     <div style={{ fontWeight: 'bold', fontSize: 13, color: player?.isAlive ? '#e6edf3' : '#666' }}>
       {player?.isAlive ? '👤' : '💀'} {player?.name}
+      {player?.isHost && <span style={{ color: '#f0a500', fontSize: 10 }}> 👑</span>}
     </div>
-    {player?.isAlive && <div style={{ fontSize: 11, color: '#8b949e', marginTop: 4 }}>
-      🂠 ×{player?.hand?.length || 0}
-    </div>}
+    {player?.isAlive && (
+      <div style={{ fontSize: 11, color: '#8b949e', marginTop: 4 }}>
+        {!player?.isConnected && <span style={{ color: '#e94560' }}>掉线 </span>}
+        <span>🂠 ×{player?.hand?.length || 0}</span>
+        {player?.isReady && <span style={{ color: '#53a8b6', marginLeft: 4 }}>✓ 准备</span>}
+      </div>
+    )}
+    {!player?.isAlive && <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>已淘汰</div>}
   </div>
 );
 
@@ -139,6 +180,10 @@ export const GameRoom: React.FC = () => {
     ? opponents.filter((p) => p.id !== topPlayer.id)
     : opponents;
 
+  const isWaiting = state.phase === 'waiting' || state.phase === 'ready';
+  const isAllReady = state.playerOrder.length === 4
+    && state.playerOrder.every((id) => state.players.get(id)?.isReady);
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d1117 70%)', position: 'relative' }}>
       {disconnected && (
@@ -191,26 +236,59 @@ export const GameRoom: React.FC = () => {
 
         {/* Action buttons */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button disabled={state.currentTurnId !== sessionId || !state.lastPlayerId || state.lastPlayerId === sessionId}
-            onClick={() => send('challenge')}
-            style={{ padding: '10px 18px', fontSize: 14, fontWeight: 'bold', background: '#e94560', color: '#fff', borderRadius: 8 }}>
-            🕵️ 质疑 (C)
-          </button>
-          <button onClick={() => send('pass')}
-            disabled={state.currentTurnId !== sessionId || !state.lastPlayerId || state.lastPlayerId === sessionId}
-            style={{ padding: '10px 18px', fontSize: 14, background: '#30363d', color: '#e6edf3', borderRadius: 8 }}>
-            ✓ 相信
-          </button>
-          <button disabled={state.currentTurnId !== sessionId || selectedCards.size === 0}
-            onClick={() => {
-              if (!myPlayer || selectedCards.size === 0 || !state) return;
-              const cards = Array.from(selectedCards).map((i) => myPlayer.hand[i]);
-              send('play_cards', { cards, declaredCard: state.targetCard, declaredCount: cards.length });
-              setSelectedCards(new Set());
-            }}
-            style={{ padding: '10px 18px', fontSize: 14, fontWeight: 'bold', background: '#53a8b6', color: '#fff', borderRadius: 8 }}>
-            🎯 出牌 (↵)
-          </button>
+          {isWaiting ? (
+            <>
+              <button
+                onClick={() => send('ready')}
+                style={{
+                  padding: '10px 18px', fontSize: 14, fontWeight: 'bold',
+                  background: myPlayer?.isReady ? '#f0a500' : '#53a8b6',
+                  color: '#fff', borderRadius: 8,
+                }}>
+                {myPlayer?.isReady ? '❌ 取消准备' : '✅ 准备'}
+              </button>
+              {myPlayer?.isHost && (
+                <button
+                  onClick={() => send('start_game')}
+                  disabled={!isAllReady}
+                  style={{
+                    padding: '10px 18px', fontSize: 14, fontWeight: 'bold',
+                    background: isAllReady ? '#e94560' : '#30363d',
+                    color: '#fff', borderRadius: 8,
+                  }}>
+                  🎮 开始游戏
+                </button>
+              )}
+              {myPlayer?.isHost && !isAllReady && (
+                <div style={{ fontSize: 10, color: '#8b949e', textAlign: 'center' }}>
+                  需要 4 人全部准备
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <button disabled={state.currentTurnId !== sessionId || !state.lastPlayerId || state.lastPlayerId === sessionId}
+                onClick={() => send('challenge')}
+                style={{ padding: '10px 18px', fontSize: 14, fontWeight: 'bold', background: '#e94560', color: '#fff', borderRadius: 8 }}>
+                🕵️ 质疑 (C)
+              </button>
+              <button onClick={() => send('pass')}
+                disabled={state.currentTurnId !== sessionId || !state.lastPlayerId || state.lastPlayerId === sessionId}
+                style={{ padding: '10px 18px', fontSize: 14, background: '#30363d', color: '#e6edf3', borderRadius: 8 }}>
+                ✓ 相信
+              </button>
+              <button disabled={state.currentTurnId !== sessionId || selectedCards.size === 0}
+                onClick={() => {
+                  if (!myPlayer || selectedCards.size === 0 || !state) return;
+                  const cards = Array.from(selectedCards).map((i) => myPlayer.hand[i]);
+                  send('play_cards', { cards, declaredCard: state.targetCard, declaredCount: cards.length });
+                  setSelectedCards(new Set());
+                }}
+                style={{ padding: '10px 18px', fontSize: 14, fontWeight: 'bold', background: '#53a8b6', color: '#fff', borderRadius: 8 }}>
+                🎯 出牌 (↵)
+              </button>
+            </>
+          )}
         </div>
       </div>
 
