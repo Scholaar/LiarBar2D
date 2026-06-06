@@ -29,7 +29,25 @@
       "Bash(timeout 5 npx tsx src/index.ts)",
       "Bash(npx tsx *)",
       "mcp__playwright__browser_navigate",
-      "Bash(npx playwright *)"
+      "Bash(npx playwright *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(npx @playwright/mcp@latest --help)",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_click",
+      "Bash(curl -s http://localhost:2567/colyseus)",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_run_code_unsafe",
+      "mcp__playwright__browser_tabs",
+      "Bash(node -e \"console.log\\(require\\('/home/zmw/Code/LiarBar2D/node_modules/colyseus/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('/home/zmw/Code/LiarBar2D/node_modules/@colyseus/schema/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('/home/zmw/Code/LiarBar2D/node_modules/colyseus.js/package.json'\\).version\\)\")",
+      "Bash(node -e \"const p = require\\('/home/zmw/Code/LiarBar2D/node_modules/colyseus.js/package.json'\\); console.log\\(JSON.stringify\\(p.dependencies, null, 2\\)\\)\")",
+      "Bash(node -e \"console.log\\(require\\('/home/zmw/Code/LiarBar2D/node_modules/colyseus.js/node_modules/@colyseus/schema/package.json'\\).version\\)\")",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(python3 *)"
     ]
   }
 }

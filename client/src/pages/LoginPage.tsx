@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { LogIn } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const [name, setName] = useState('');
@@ -23,40 +24,69 @@ export const LoginPage: React.FC = () => {
       alignItems: 'center',
       justifyContent: 'center',
       height: '100vh',
-      background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d1117 70%)',
+      backgroundColor: 'var(--bg-base)',
+      padding: 'var(--space-6)',
     }}>
-      <h1 style={{ fontSize: 48, color: '#e94560', marginBottom: 8 }}>
-        🃏 骗子酒馆
+      {/* Logo / Title */}
+      <h1 style={{
+        fontSize: 'var(--text-5xl)',
+        fontWeight: 700,
+        color: 'var(--text-primary)',
+        letterSpacing: '-0.02em',
+        marginBottom: 'var(--space-2)',
+      }}>
+        骗子酒馆
       </h1>
-      <p style={{ color: '#8b949e', marginBottom: 40, fontSize: 16 }}>
-        Liar's Bar · 多人吹牛卡牌游戏
+      <p style={{
+        fontSize: 'var(--text-sm)',
+        color: 'var(--text-muted)',
+        marginBottom: 'var(--space-12)',
+        letterSpacing: '0.05em',
+      }}>
+        Liar&rsquo;s Bar
       </p>
+
+      {/* Input */}
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="输入你的昵称..."
+        placeholder="输入昵称"
         maxLength={12}
         autoFocus
         style={{
           width: 280,
-          padding: '12px 16px',
-          fontSize: 16,
+          padding: 'var(--space-3) var(--space-4)',
+          fontSize: 'var(--text-base)',
           textAlign: 'center',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-default)',
+          color: 'var(--text-primary)',
+          outline: 'none',
+          transition: 'border-color var(--transition-fast)',
         }}
       />
+
+      {/* Submit */}
       <button
         onClick={handleStart}
         disabled={!name.trim()}
         style={{
-          marginTop: 16,
-          padding: '12px 48px',
-          fontSize: 18,
-          fontWeight: 'bold',
-          background: 'linear-gradient(135deg, #e94560, #c23152)',
+          marginTop: 'var(--space-4)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          padding: 'var(--space-3) var(--space-12)',
+          fontSize: 'var(--text-base)',
+          fontWeight: 600,
+          background: 'var(--accent)',
           color: '#fff',
+          borderRadius: 'var(--radius-sm)',
+          transition: 'background-color var(--transition-fast)',
         }}
       >
+        <LogIn size={18} />
         进入酒馆
       </button>
     </div>

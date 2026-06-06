@@ -79,6 +79,26 @@ export function getPlayerStats(name: string): {
   };
 }
 
+export function getLeaderboard(): Array<{
+  name: string;
+  wins: number;
+  losses: number;
+  winRate: number;
+  gamesPlayed: number;
+}> {
+  const d = getDb();
+  const rows = d.prepare(
+    'SELECT name, wins, losses FROM players WHERE wins + losses > 0 ORDER BY wins * 1.0 / (wins + losses) DESC, wins DESC LIMIT 50'
+  ).all() as Array<{ name: string; wins: number; losses: number }>;
+  return rows.map((r) => ({
+    name: r.name,
+    wins: r.wins,
+    losses: r.losses,
+    gamesPlayed: r.wins + r.losses,
+    winRate: r.wins + r.losses > 0 ? r.wins / (r.wins + r.losses) : 0,
+  }));
+}
+
 export function closeDb(): void {
   if (db) {
     db.close();

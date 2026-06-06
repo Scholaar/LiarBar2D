@@ -1,4 +1,5 @@
 import { Room, Client, matchMaker } from 'colyseus';
+import { getLeaderboard } from '../db';
 
 interface RoomListing {
   roomId: string;
@@ -12,6 +13,10 @@ export class LobbyRoom extends Room {
   onCreate(): void {
     this.onMessage('list_rooms', (client: Client) => {
       this.sendRoomList(client);
+    });
+    this.onMessage('get_leaderboard', (client: Client) => {
+      const leaderboard = getLeaderboard();
+      client.send('leaderboard', leaderboard);
     });
   }
 

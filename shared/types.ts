@@ -64,6 +64,6 @@ export const TOTAL_CARDS =
   Object.values(DECK_COMPOSITION).reduce((sum, count) => sum + count, 0) + JOKER_COUNT;
 export const CARDS_PER_PLAYER = 5;
 export const MAX_PLAYERS = 4;
-export const TURN_TIMEOUT_SECONDS = 15;
+export const TURN_TIMEOUT_SECONDS = 999;
 export const RECONNECT_TIMEOUT_SECONDS = 60;
 export const ROULETTE_SLOTS = 6;
