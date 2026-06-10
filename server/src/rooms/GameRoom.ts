@@ -4,8 +4,15 @@ import { CardDeck } from '../game/CardDeck';
 import { RuleEngine } from '../game/RuleEngine';
 import { RouletteEngine } from '../game/RouletteEngine';
 import { recordGameResult } from '../db';
-import { MAX_PLAYERS, TURN_TIMEOUT_SECONDS, RECONNECT_TIMEOUT_SECONDS } from 'shared';
-import type { TargetCard } from 'shared';
+import {
+  MAX_PLAYERS, TURN_TIMEOUT_SECONDS, RECONNECT_TIMEOUT_SECONDS,
+  ROULETTE_CHALLENGE_DISPLAY_MS, ROULETTE_SPIN_MS, ROULETTE_RESULT_DISPLAY_MS,
+  ROUND_END_DELAY_MS,
+} from 'shared';
+import type { TargetCard, CardValue } from 'shared';
+
+const VALID_CARD_VALUES: CardValue[] = ['A', 'K', 'Q', 'J', 'Joker'];
+const VALID_TARGET_CARDS: TargetCard[] = ['A', 'K', 'Q', 'J'];
 
 export class GameRoom extends Room<GameRoomState> {
   private deck: CardDeck = new CardDeck();
@@ -13,6 +20,7 @@ export class GameRoom extends Room<GameRoomState> {
   private rouletteEngine: RouletteEngine = new RouletteEngine();
   private turnTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private rouletteTimers: ReturnType<typeof setTimeout>[] = [];
 
   // Roulette visual tracking (not part of Colyseus state, sent via sync_state)
   private roulettePlayerId: string | null = null;
@@ -28,17 +36,12 @@ export class GameRoom extends Room<GameRoomState> {
 
   onCreate(options: { roomName: string }): void {
     const state = new GameRoomState();
-    // Set state FIRST so the serializer is wired up, THEN assign values
-    // to ensure Colyseus Schema change tracking records all mutations.
     this.setState(state);
 
     state.roomName = options.roomName;
     state.roomId = this.roomId;
     state.phase = 'waiting';
-    // Force a non-default value change to ensure encoding picks up primitive fields
     state.timeoutSeconds = 15;
-
-    console.log(`[GameRoom] onCreate — roomId=${this.roomId}, roomName=${options.roomName}, phase=${state.phase}, playerOrder=${state.playerOrder.length}`);
 
     this.setMetadata({
       roomName: options.roomName,
@@ -78,7 +81,6 @@ export class GameRoom extends Room<GameRoomState> {
 
     this.state.players.set(client.sessionId, player);
     this.state.playerOrder.push(client.sessionId);
-    console.log(`[GameRoom] onJoin — sessionId=${client.sessionId}, playerName=${options.playerName}, playerCount=${this.state.playerOrder.length}, phase=${this.state.phase}`);
     this.updateMetadata();
 
     // Broadcast full state to all clients (including the new one)
@@ -164,11 +166,11 @@ export class GameRoom extends Room<GameRoomState> {
         lastClaimCard: this.state.lastClaimCard,
         lastClaimCount: this.state.lastClaimCount,
         lastPlayerId: this.state.lastPlayerId,
-        messages: Array.from(this.state.messages).map((m) => ({
-          playerId: m.playerId,
-          playerName: m.playerName,
-          text: m.text,
-          timestamp: m.timestamp,
+        messages: Array.from(this.state.messages).filter(Boolean).map((m) => ({
+          playerId: m!.playerId,
+          playerName: m!.playerName,
+          text: m!.text,
+          timestamp: m!.timestamp,
         })),
         winnerId: this.state.winnerId,
         eliminationOrder: Array.from(this.state.eliminationOrder),
@@ -187,18 +189,10 @@ export class GameRoom extends Room<GameRoomState> {
   // === 准备与开始 ===
 
   private handleReady(client: Client): void {
-    console.log(`[GameRoom] handleReady called by client ${client.sessionId}, phase=${this.state.phase}`);
-    if (this.state.phase !== 'waiting' && this.state.phase !== 'ready') {
-      console.warn(`[GameRoom] handleReady rejected — wrong phase: ${this.state.phase}`);
-      return;
-    }
+    if (this.state.phase !== 'waiting' && this.state.phase !== 'ready') return;
     const player = this.state.players.get(client.sessionId);
-    if (!player) {
-      console.warn(`[GameRoom] handleReady rejected — player not found for sessionId ${client.sessionId}`);
-      return;
-    }
+    if (!player) return;
     player.isReady = !player.isReady;
-    console.log(`[GameRoom] player ${player.name} isReady=${player.isReady}`);
 
     const allPlayers = Array.from(this.state.players.values());
     const allReady =
@@ -228,7 +222,6 @@ export class GameRoom extends Room<GameRoomState> {
     const player = this.state.players.get(client.sessionId);
     if (!player || !player.isHost) return;
     if (this.state.phase !== 'waiting' && this.state.phase !== 'ready') return;
-    console.log(`[GameRoom] disband — host ${player.name} disbands room`);
     // Force-disconnect all clients, which will auto-dispose the room
     this.broadcast('room_closed', { message: '房主已解散房间' });
     setTimeout(() => this.disconnect(), 500);
@@ -236,9 +229,8 @@ export class GameRoom extends Room<GameRoomState> {
 
   private handleContinueGame(client: Client): void {
     const player = this.state.players.get(client.sessionId);
-    if (!player) return;
+    if (!player || !player.isHost) return;
     if (this.state.phase !== 'game_over') return;
-    console.log(`[GameRoom] continue_game — ${player.name} starts new round`);
     // Reset game state
     this.state.winnerId = '';
     this.state.eliminationOrder.clear();
@@ -272,9 +264,17 @@ export class GameRoom extends Room<GameRoomState> {
 
   private reassignHost(): void {
     if (this.state.players.size === 0) return;
-    const firstPlayer = Array.from(this.state.players.values())[0];
-    if (firstPlayer && !firstPlayer.isHost) {
-      firstPlayer.isHost = true;
+    // 清除所有人的 isHost 标记
+    for (const [, p] of this.state.players) {
+      p.isHost = false;
+    }
+    // 按 playerOrder 找到第一个在场的玩家作为新房主
+    for (const id of this.state.playerOrder) {
+      const p = this.state.players.get(id);
+      if (p) {
+        p.isHost = true;
+        return;
+      }
     }
   }
 
@@ -329,19 +329,24 @@ export class GameRoom extends Room<GameRoomState> {
     if (!player || !player.isAlive) return;
 
     const { cards, declaredCard, declaredCount } = data;
-    if (cards.length < 1 || cards.length > 3) return;
+
+    // 输入验证
+    if (!Array.isArray(cards) || cards.length < 1 || cards.length > 3) return;
+    if (!VALID_TARGET_CARDS.includes(declaredCard)) return;
     if (declaredCard !== this.state.targetCard) return;
     if (declaredCount !== cards.length) return;
+    if (!cards.every((c) => VALID_CARD_VALUES.includes(c as CardValue))) return;
 
+    // 验证手牌中确实有这些牌
     const handCopy = [...player.hand];
     for (const card of cards) {
-      const idx = handCopy.indexOf(card);
+      const idx = handCopy.indexOf(card as CardValue);
       if (idx === -1) return;
       handCopy.splice(idx, 1);
     }
 
     for (const card of cards) {
-      const idx = player.hand.indexOf(card);
+      const idx = player.hand.indexOf(card as CardValue);
       if (idx >= 0) {
         player.hand.splice(idx, 1);
       }
@@ -370,23 +375,20 @@ export class GameRoom extends Room<GameRoomState> {
   // === 质疑 ===
 
   private handleChallenge(client: Client): void {
-    console.log(`[GameRoom] handleChallenge — client=${client.sessionId}, phase=${this.state.phase}, currentTurnId=${this.state.currentTurnId}, lastPlayerId=${this.state.lastPlayerId}`);
     if (this.state.phase !== 'playing') return;
     if (this.state.currentTurnId !== client.sessionId) return;
     if (!this.state.lastPlayerId) return;
 
     const actualCards = [...this.state.lastActualCards];
     const result = this.ruleEngine.verifyClaim(
-      actualCards as any,
+      actualCards as CardValue[],
       this.state.targetCard as TargetCard,
       this.state.lastClaimCount
     );
 
-    // challenge success = defender lied and challenger caught them
-    const challengeSuccess = !result.isTruth;
     const loserId = result.isTruth
-      ? client.sessionId          // truth was told, challenger wrongly accused → challenger loses
-      : this.state.lastPlayerId;  // lie was caught, defender loses
+      ? client.sessionId
+      : this.state.lastPlayerId;
 
     // Store challenge info for visual display
     this.challengeChallengerId = client.sessionId;
@@ -396,8 +398,6 @@ export class GameRoom extends Room<GameRoomState> {
     this.challengeDeclaredCount = this.state.lastClaimCount;
     this.challengeIsTruth = result.isTruth;
 
-    console.log(`[GameRoom] handleChallenge — actualCards=[${actualCards.join(',')}], targetCard=${this.state.targetCard}, isTruth=${result.isTruth}, challengeSuccess=${challengeSuccess}, loserId=${loserId}`);
-
     this.executeRoulette(loserId);
   }
 
@@ -406,48 +406,42 @@ export class GameRoom extends Room<GameRoomState> {
   private executeRoulette(playerId: string): void {
     this.state.phase = 'roulette';
     this.clearTurnTimer();
+    this.clearRouletteTimers();
 
     const player = this.state.players.get(playerId);
     if (!player) return;
-    const playerName = player.name;
 
     const hasChallenge = this.challengeChallengerId !== null;
 
     if (hasChallenge) {
-      // Phase 1: Show challenge info first (3s), roulettePlayerId not set yet
       this.roulettePlayerId = null;
       this.rouletteGotShot = null;
-      console.log(`[GameRoom] executeRoulette — showing challenge info first (no roulette player yet)`);
       this.broadcastSyncState();
 
-      // Phase 2: After 3s, start roulette spin
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (this.state.phase !== 'roulette') return;
-        this.doRouletteSpin(player, playerName);
-      }, 3000);
+        this.doRouletteSpin(player);
+      }, ROULETTE_CHALLENGE_DISPLAY_MS);
+      this.rouletteTimers.push(timer);
     } else {
-      // No challenge — start roulette directly
       this.roulettePlayerId = playerId;
       this.rouletteGotShot = null;
-      console.log(`[GameRoom] executeRoulette — no challenge, roulette directly for ${playerName}`);
       this.broadcastSyncState();
-      this.doRouletteSpin(player, playerName);
+      this.doRouletteSpin(player);
     }
   }
 
-  private doRouletteSpin(player: Player, playerName: string): void {
+  private doRouletteSpin(player: Player): void {
     this.roulettePlayerId = player.id;
-    this.rouletteGotShot = null as any;
-    console.log(`[GameRoom] doRouletteSpin — spinning for ${playerName}`);
+    this.rouletteGotShot = null;
     this.broadcastSyncState();
 
-    // After 1.5s, reveal result
-    setTimeout(() => {
+    // 1.5s 后揭示结果
+    const spinTimer = setTimeout(() => {
       if (this.state.phase !== 'roulette') return;
 
       const gotShot = this.rouletteEngine.spin(player.rouletteCount);
       this.rouletteGotShot = gotShot;
-      console.log(`[GameRoom] doRouletteSpin — player=${playerName}, gotShot=${gotShot}`);
 
       if (gotShot) {
         player.isAlive = false;
@@ -460,15 +454,17 @@ export class GameRoom extends Room<GameRoomState> {
 
       this.broadcastSyncState();
 
-      // After 2.5s, clear and finish round
-      setTimeout(() => {
+      // 2.5s 后清理并结束回合
+      const resultTimer = setTimeout(() => {
         if (this.state.phase === 'roulette') {
           this.roulettePlayerId = null;
           this.rouletteGotShot = false;
           this.finishRound();
         }
-      }, 2500);
-    }, 1500);
+      }, ROULETTE_RESULT_DISPLAY_MS);
+      this.rouletteTimers.push(resultTimer);
+    }, ROULETTE_SPIN_MS);
+    this.rouletteTimers.push(spinTimer);
   }
 
   private finishRound(): void {
@@ -489,7 +485,7 @@ export class GameRoom extends Room<GameRoomState> {
 
     this.state.phase = 'round_end';
     this.broadcastSyncState();
-    setTimeout(() => this.startNewRound(), 1000);
+    setTimeout(() => this.startNewRound(), ROUND_END_DELAY_MS);
   }
 
   // === 胜利检查 ===
@@ -499,7 +495,6 @@ export class GameRoom extends Room<GameRoomState> {
       (p) => p.isAlive
     );
     const winner = this.ruleEngine.checkWinCondition(alivePlayers.map((p) => p.id));
-    console.log(`[GameRoom] checkGameEnd — totalPlayers=${this.state.players.size}, aliveCount=${alivePlayers.length}, aliveIds=[${alivePlayers.map(p => p.id).join(',')}], winner=${winner}`);
     if (winner) {
       this.state.phase = 'game_over';
       this.state.winnerId = winner;
@@ -520,36 +515,29 @@ export class GameRoom extends Room<GameRoomState> {
 
   private advanceToNextPlayer(): void {
     const alivePlayers = Array.from(this.state.players.values()).filter((p) => p.isAlive);
-    const aliveIds = new Set(alivePlayers.map((p) => p.id));
-    // Players who still have cards — players with empty hands are skipped
     const canPlayIds = new Set(alivePlayers.filter((p) => p.hand.length > 0).map((p) => p.id));
-
-    console.log(`[GameRoom] advanceToNextPlayer — currentTurnId=${this.state.currentTurnId}, aliveIds=[${Array.from(aliveIds).join(',')}], canPlayIds=[${Array.from(canPlayIds).join(',')}]`);
 
     // If all alive players have played all their cards and no one challenged,
     // the last player to play goes through roulette.
     if (canPlayIds.size === 0 && this.state.lastPlayerId) {
       const lastPlayer = this.state.players.get(this.state.lastPlayerId);
       if (lastPlayer && lastPlayer.isAlive) {
-        console.log(`[GameRoom] advanceToNextPlayer — all cards played, no challenges, ${lastPlayer.name} goes to roulette`);
         this.executeRoulette(this.state.lastPlayerId);
         return;
       }
     }
 
+    const aliveIds = new Set(alivePlayers.map((p) => p.id));
     const nextPlayer = this.ruleEngine.getNextAlivePlayer(
       Array.from(this.state.playerOrder) as string[],
       canPlayIds.size > 0 ? canPlayIds : aliveIds,
       this.state.currentTurnId
     );
 
-    console.log(`[GameRoom] advanceToNextPlayer — nextPlayer=${nextPlayer}, lastPlayerId=${this.state.lastPlayerId}`);
-
     if (
       this.state.lastPlayerId &&
       nextPlayer === this.state.lastPlayerId
     ) {
-      console.log(`[GameRoom] advanceToNextPlayer — round finished (next === last), calling finishRound`);
       this.finishRound();
       return;
     }
@@ -631,9 +619,17 @@ export class GameRoom extends Room<GameRoomState> {
 
   onDispose(): void {
     this.clearTurnTimer();
+    this.clearRouletteTimers();
     for (const timer of this.reconnectTimers.values()) {
       clearTimeout(timer);
     }
     this.reconnectTimers.clear();
+  }
+
+  private clearRouletteTimers(): void {
+    for (const timer of this.rouletteTimers) {
+      clearTimeout(timer);
+    }
+    this.rouletteTimers = [];
   }
 }

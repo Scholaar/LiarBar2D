@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { gameClient } from '../game/colyseus-client';
 import { useGameState } from '../game/useGameState';
+import type { SyncedState } from '../game/useGameState';
 import { bindGameKeys } from '../game/keyboard';
 import { Player } from '../../../server/src/schema/GameRoomState';
 import {
@@ -34,8 +35,8 @@ import {
    ================================================================ */
 
 const GameHeader: React.FC<{
-  state: any;
-  mySessionId: any;
+  state: SyncedState;
+  mySessionId: string;
   displayTimer: number;
 }> = ({ state, mySessionId, displayTimer }) => {
   const playerCount = state?.playerOrder?.length || 0;
@@ -102,7 +103,7 @@ const GameHeader: React.FC<{
 };
 
 const PlayerSlot: React.FC<{
-  player: any;
+  player: Player;
   isCurrentTurn: boolean;
 }> = ({ player, isCurrentTurn }) => {
   const isAlive = player?.isAlive;
@@ -160,7 +161,7 @@ const PlayerSlot: React.FC<{
   );
 };
 
-const PlayArea: React.FC<{ state: any }> = ({ state }) => (
+const PlayArea: React.FC<{ state: SyncedState }> = ({ state }) => (
   <div style={{
     flex: 1, display: 'flex', justifyContent: 'center',
     margin: '0 var(--space-4)',
@@ -280,7 +281,8 @@ export const GameRoom: React.FC = () => {
         const player = getMyPlayer();
         if (!player || !state) return;
         const hand = Array.from(player.hand);
-        const cards = Array.from(selectedCards).map((i) => hand[i]);
+        const validIndices = Array.from(selectedCards).filter((i) => i >= 0 && i < hand.length);
+        const cards = validIndices.map((i) => hand[i]);
         if (cards.length < 1 || cards.length > 3) return;
         send('play_cards', { cards, declaredCard: state.targetCard, declaredCount: cards.length });
         setSelectedCards(new Set());
@@ -654,7 +656,9 @@ export const GameRoom: React.FC = () => {
                 onClick={() => {
                   if (!myPlayer || selectedCards.size === 0 || !state) return;
                   const hand = Array.from(myPlayer.hand);
-                  const cards = Array.from(selectedCards).map((i) => hand[i]);
+                  const validIndices = Array.from(selectedCards).filter((i) => i >= 0 && i < hand.length);
+                  const cards = validIndices.map((i) => hand[i]);
+                  if (cards.length < 1 || cards.length > 3) return;
                   send('play_cards', { cards, declaredCard: state.targetCard, declaredCount: cards.length });
                   setSelectedCards(new Set());
                 }}
@@ -692,7 +696,7 @@ export const GameRoom: React.FC = () => {
    Overlay Components
    ================================================================ */
 
-const RouletteOverlay: React.FC<{ state: any; sessionId: any }> = ({ state, sessionId }) => {
+const RouletteOverlay: React.FC<{ state: SyncedState; sessionId: string }> = ({ state, sessionId }) => {
   const isShot = state.rouletteGotShot;
   const isSpinning = isShot === undefined || isShot === null;
   const roulettePlayer = state.roulettePlayerId ? state.players.get(state.roulettePlayerId) : null;
@@ -770,8 +774,8 @@ const RouletteOverlay: React.FC<{ state: any; sessionId: any }> = ({ state, sess
 };
 
 const GameOverOverlay: React.FC<{
-  state: any;
-  sessionId: any;
+  state: SyncedState;
+  sessionId: string;
   navigate: (path: string) => void;
   send: (action: string, payload?: any) => void;
 }> = ({ state, sessionId, navigate, send }) => {

@@ -28,13 +28,14 @@ export const RoomListModal: React.FC<Props> = ({ onClose, onJoin }) => {
       setRooms(data.filter((r) => r.phase === 'waiting' || r.phase === 'ready'));
     };
 
-    lobby.onMessage('room_list', handler);
+    const subscription = lobby.onMessage('room_list', handler);
     lobby.send('list_rooms');
 
     const interval = setInterval(() => lobby.send('list_rooms'), 3000);
 
     return () => {
       clearInterval(interval);
+      if (typeof subscription.unbind === 'function') subscription.unbind();
     };
   }, []);
 

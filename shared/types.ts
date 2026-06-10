@@ -67,3 +67,9 @@ export const MAX_PLAYERS = 4;
 export const TURN_TIMEOUT_SECONDS = 999;
 export const RECONNECT_TIMEOUT_SECONDS = 60;
 export const ROULETTE_SLOTS = 6;
+
+/** 轮盘赌视觉编排时间（毫秒） */
+export const ROULETTE_CHALLENGE_DISPLAY_MS = 3000;
+export const ROULETTE_SPIN_MS = 1500;
+export const ROULETTE_RESULT_DISPLAY_MS = 2500;
+export const ROUND_END_DELAY_MS = 1000;

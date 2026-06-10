@@ -12,9 +12,7 @@ export class RouletteEngine {
   spin(rouletteCount: number): boolean {
     const bulletCount = this.getBulletCount(rouletteCount);
     const landedSlot = Math.floor(Math.random() * ROULETTE_SLOTS) + 1;
-    const gotShot = landedSlot <= bulletCount;
-    console.log(`[RouletteEngine] ROULETTE_SLOTS=${ROULETTE_SLOTS}, rouletteCount=${rouletteCount}, bulletCount=${bulletCount}, landedSlot=${landedSlot}, gotShot=${gotShot}`);
-    return gotShot;
+    return landedSlot <= bulletCount;
   }
 
   isEliminated(gotShot: boolean): boolean {

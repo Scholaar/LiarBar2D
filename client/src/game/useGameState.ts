@@ -3,7 +3,7 @@ import { Room } from 'colyseus.js';
 import { GameRoomState, Player } from '../../../server/src/schema/GameRoomState';
 import { gameClient } from './colyseus-client';
 
-interface SyncedState {
+export interface SyncedState {
   phase: string;
   roomName: string;
   roomId: string;
@@ -72,7 +72,6 @@ export function useGameState() {
 
   useEffect(() => {
     const gameRoom = gameClient.gameRoom;
-    console.log(`[useGameState] init — gameClient.gameRoom=${!!gameRoom}`);
     if (gameRoom) {
       schemaStateRef.current = gameRoom.state as any;
       setRoom(gameRoom as any);
@@ -81,19 +80,16 @@ export function useGameState() {
       const merged = mergeState();
       setState(merged);
       setStateVersion((n) => n + 1);
-      console.log(`[useGameState] init — sessionId=${gameRoom.sessionId}, phase=${merged.phase}, playerCount=${merged.playerOrder?.length}`);
 
       const onChange = gameRoom.onStateChange((newState) => {
         schemaStateRef.current = newState as any;
         const merged = mergeState();
         setState(merged);
         setStateVersion((n) => n + 1);
-        console.log(`[useGameState] onStateChange — phase=${merged.phase}, playerCount=${merged.playerOrder?.length}`);
       });
 
       // Handle manual sync_state messages from server
       const onSyncState = gameRoom.onMessage('sync_state', (data: any) => {
-        console.log(`[useGameState] sync_state received — phase=${data.phase}, playerCount=${data.playerOrder?.length}`);
         // Build Player instances from synced data
         const playersMap = new Map<string, Player>();
         if (data.players) {
@@ -142,7 +138,6 @@ export function useGameState() {
       });
 
       return () => {
-        console.log(`[useGameState] cleanup — clearing handlers`);
         onChange.clear();
         // onMessage returns nanoevents subscription with .unbind()
         if (typeof onSyncState === 'function') {
@@ -154,18 +149,14 @@ export function useGameState() {
         }
       };
     } else {
-      console.warn(`[useGameState] init — gameClient.gameRoom is NULL!`);
+      // gameRoom not available — component mounted before joining
     }
   }, [mergeState]);
 
   const send = useCallback(
     (type: string, data?: any) => {
-      console.log(`[useGameState] send('${type}') called, room=${!!room}, sessionId=${room?.sessionId}`);
       if (room) {
         room.send(type, data);
-        console.log(`[useGameState] send('${type}') — message sent`);
-      } else {
-        console.warn(`[useGameState] send('${type}') — room is null, message NOT sent!`);
       }
     },
     [room]
